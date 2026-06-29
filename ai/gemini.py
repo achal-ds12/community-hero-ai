@@ -1,13 +1,26 @@
-import os
 import json
+import os
+
+import streamlit as st
 from dotenv import load_dotenv
 from google import genai
 from PIL import Image
 
-# Load API key
+# Load .env for local development
 load_dotenv()
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# Get API key (Streamlit Cloud -> Secrets, Local -> .env)
+api_key = None
+
+try:
+    api_key = st.secrets["GEMINI_API_KEY"]
+except Exception:
+    api_key = os.getenv("GEMINI_API_KEY")
+
+if not api_key:
+    raise ValueError("GEMINI_API_KEY not found.")
+
+client = genai.Client(api_key=api_key)
 
 MODEL = "gemini-2.5-flash"
 
@@ -37,17 +50,25 @@ Return ONLY valid JSON.
 }}
 """
 
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=[
-            prompt,
-            image
-        ]
-    )
+    try:
+        response = client.models.generate_content(
+            model=MODEL,
+            contents=[prompt, image]
+        )
 
-    text = response.text.strip()
+        text = response.text.strip()
 
-    if text.startswith("```"):
-        text = text.replace("```json", "").replace("```", "").strip()
+        if text.startswith("```"):
+            text = text.replace("```json", "").replace("```", "").strip()
 
-    return json.loads(text)
+        return json.loads(text)
+
+    except Exception as e:
+        return {
+            "category": "Unknown",
+            "severity": "Medium",
+            "priority": "Normal",
+            "department": "Municipal Department",
+            "summary": f"AI service temporarily unavailable: {str(e)}",
+            "recommended_action": "Please review the issue manually."
+        }
